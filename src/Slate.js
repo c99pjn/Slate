@@ -1,18 +1,18 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Slate = void 0;
-const defaultComparator = (v1, v2) => Object.is(v1, v2);
+const defaultShouldUpdate = (v1, v2) => !Object.is(v1, v2);
 class Slate {
     initilizer;
     dependancies;
-    comparator;
+    shouldUpdate;
     _value;
     _cbs = new Set();
     _listeners = [];
-    constructor(initilizer, dependancies = [], comparator = defaultComparator) {
+    constructor(initilizer, dependancies = [], shouldUpdate = defaultShouldUpdate) {
         this.initilizer = initilizer;
         this.dependancies = dependancies;
-        this.comparator = comparator;
+        this.shouldUpdate = shouldUpdate;
         this._value = this.resolveValue();
     }
     resolveValue() {
@@ -23,7 +23,7 @@ class Slate {
     }
     setValue() {
         const newValue = this.resolveValue();
-        if (!this.comparator(newValue, this._value)) {
+        if (this.shouldUpdate(newValue, this._value)) {
             this._value = newValue;
             this._cbs.forEach((cb) => cb(this._value));
         }

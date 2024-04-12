@@ -1,46 +1,56 @@
 type Cancel = () => void;
 type Callback<T> = (v: T) => void;
-type Comparator<T> = (v1: T, v2: T) => boolean;
-type Values<S> = {
-  [Key in keyof S]: S[Key] extends Slate<infer T, any> ? T : never;
+type ShouldUpdate<T> = (newValue: T, oldValue: T) => boolean;
+type Dependency<T> = { listen: (cb: Callback<T>) => Cancel };
+type Dependencies<S> = {
+  [Key in keyof S]: Dependency<S[Key]>;
 };
 
-const defaultComparator = (v1: unknown, v2: unknown) => Object.is(v1, v2);
+export interface ISlate<T, S> {
+  value: T;
+  set: (initilizer: ((deps: S) => T) | T) => void;
+  listen: (cb: Callback<T>) => Cancel;
+}
 
-export class Slate<T, S extends ReadonlyArray<Slate<any, any>> = never[]> {
+const defaultShouldUpdate = (v1: unknown, v2: unknown): boolean =>
+  !Object.is(v1, v2);
+
+export class Slate<T, S extends Array<unknown> = never[]>
+  implements ISlate<T, S>
+{
   private _value: T;
   private _cbs = new Set<Callback<T>>();
   private _listeners: Array<Cancel> = [];
 
   constructor(
-    private initilizer: ((deps: Values<S>) => T) | T,
-    private dependancies: S | never[] = [],
-    private comparator: Comparator<T> = defaultComparator,
+    private initilizer: ((deps: S) => T) | T,
+    private dependancies: Dependencies<S> | never[] = [],
+    private shouldUpdate: ShouldUpdate<T> = defaultShouldUpdate,
   ) {
     this._value = this.resolveValue();
   }
 
-  private resolveValue() {
+  private resolveValue(): T {
     return typeof this.initilizer === "function"
       ? // @ts-ignore
-        this.initilizer(this.dependancies.map((d) => d.value) as Values<S>)
+        this.initilizer(this.dependancies.map((d) => d.value))
       : this.initilizer;
   }
 
-  private setValue() {
+  private setValue(): void {
     const newValue = this.resolveValue();
 
-    if (!this.comparator(newValue, this._value)) {
+    if (this.shouldUpdate(newValue, this._value)) {
       this._value = newValue;
       this._cbs.forEach((cb) => cb(this._value));
     }
   }
 
-  get value() {
+  get value(): T {
     return this._value;
   }
 
-  public set(initilizer: ((deps: Values<S>) => T) | T) {
+  public set(initilizer: ((deps: S) => T) | T): void {
     this.initilizer = initilizer;
     this.setValue();
   }
