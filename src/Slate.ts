@@ -39,7 +39,7 @@ export class Slate<T, S extends Array<unknown> = never[]>
   private setValue(): void {
     const newValue = this.resolveValue();
 
-    if (!this.isEqual(newValue, this._value)) {
+    if (!this.isEqual(this._value, newValue)) {
       this._value = newValue;
       this._cbs.forEach((cb) => cb(this._value));
     }
