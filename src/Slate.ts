@@ -1,6 +1,6 @@
 type Cancel = () => void;
 type Callback<T> = (v: T) => void;
-type ShouldUpdate<T> = (newValue: T, oldValue: T) => boolean;
+type isEqual<T> = (oldValue: T, newValue: T) => boolean;
 type Dependency<T> = { listen: (cb: Callback<T>) => Cancel };
 type Dependencies<S> = {
   [Key in keyof S]: Dependency<S[Key]>;
@@ -12,8 +12,7 @@ export interface ISlate<T, S> {
   listen: (cb: Callback<T>) => Cancel;
 }
 
-const defaultShouldUpdate = (v1: unknown, v2: unknown): boolean =>
-  !Object.is(v1, v2);
+const defaultIsEqual = (v1: unknown, v2: unknown): boolean => Object.is(v1, v2);
 
 export class Slate<T, S extends Array<unknown> = never[]>
   implements ISlate<T, S>
@@ -25,7 +24,7 @@ export class Slate<T, S extends Array<unknown> = never[]>
   constructor(
     private initilizer: ((deps: S) => T) | T,
     private dependancies: Dependencies<S> | never[] = [],
-    private shouldUpdate: ShouldUpdate<T> = defaultShouldUpdate,
+    private isEqual: isEqual<T> = defaultIsEqual,
   ) {
     this._value = this.resolveValue();
   }
@@ -40,7 +39,7 @@ export class Slate<T, S extends Array<unknown> = never[]>
   private setValue(): void {
     const newValue = this.resolveValue();
 
-    if (this.shouldUpdate(newValue, this._value)) {
+    if (!this.isEqual(newValue, this._value)) {
       this._value = newValue;
       this._cbs.forEach((cb) => cb(this._value));
     }

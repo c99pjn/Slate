@@ -20,4 +20,6 @@ dep1.set(50);
 dep2.set({ a: 7 });
 dep1.set(3);
 console.log(mult.value);
-dep1.set(() => 14);
+dep1.set(dep1.value + 1);
+dep1.set(dep1.value + 1);
+dep1.set(dep1.value + 1);
