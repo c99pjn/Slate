@@ -7,46 +7,53 @@ class Slate {
     dependancies;
     isEqual;
     _value;
-    _cbs = new Set();
-    _listeners = [];
+    _dirty = false;
+    _lCbs = new Set();
+    _wCbs = new Set();
     constructor(initilizer, dependancies = [], isEqual = defaultIsEqual) {
         this.initilizer = initilizer;
         this.dependancies = dependancies;
         this.isEqual = isEqual;
         this._value = this.resolveValue();
+        this.dependancies.map((d) => d.watch(this.update.bind(this)));
     }
     resolveValue() {
-        return typeof this.initilizer === "function"
-            ? // @ts-ignore
+        return this.initilizer instanceof Function
+            ? //@ts-ignore
                 this.initilizer(this.dependancies.map((d) => d.value))
             : this.initilizer;
     }
     setValue() {
         const newValue = this.resolveValue();
-        if (!this.isEqual(newValue, this._value)) {
+        if (!this.isEqual(this._value, newValue)) {
             this._value = newValue;
-            this._cbs.forEach((cb) => cb(this._value));
+            this._lCbs.forEach((cb) => cb(this._value));
         }
+        this._dirty = false;
+    }
+    update() {
+        this._dirty = true;
+        if (this._lCbs.size > 0)
+            this.setValue();
+        this._wCbs.forEach((cb) => cb());
     }
     get value() {
+        if (this._dirty) {
+            this.setValue();
+        }
         return this._value;
     }
     set(initilizer) {
         this.initilizer = initilizer;
-        this.setValue();
+        this.update();
     }
     listen(cb) {
-        if (this._cbs.size === 0) {
-            this._listeners = this.dependancies.map((d) => d.listen(this.setValue.bind(this)));
-        }
-        this._cbs.add(cb);
-        return () => {
-            this._cbs.delete(cb);
-            if (this._cbs.size === 0) {
-                while (this._listeners.length)
-                    this._listeners.pop()?.();
-            }
-        };
+        this._lCbs.add(cb);
+        return () => this._lCbs.delete(cb);
+    }
+    watch(cb) {
+        this._wCbs.add(cb);
+        return () => this._wCbs.delete(cb);
     }
 }
 exports.Slate = Slate;
