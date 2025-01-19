@@ -5,24 +5,27 @@ type WatchCallback = () => void;
 type Watcher = (cb: WatchCallback) => Cancel;
 type isEqual<T> = (oldValue: T, newValue: T) => boolean;
 type Dependency<T> = { watch: (cb: () => void) => Cancel; value: T };
-type Dependencies<S> = {
-  [Key in keyof S]: Dependency<S[Key]>;
+type Dependencies<S extends readonly unknown[]> = {
+  readonly [Key in keyof S]: Dependency<S[Key]>;
 };
-type Initializer<T, S> = ((deps: S) => T) | T;
-type Setter<T, S> = (initilizer: Initializer<T, S>) => void;
+type Initializer<T, S extends readonly unknown[]> = ((...deps: S) => T) | T;
+type SetInitilizer<T, S extends readonly unknown[]> = (
+  initilizer: Initializer<T, S>
+) => void;
+type Setter<T> = ((prevValue: T) => T) | T;
+type Set<T> = (setter: Setter<T>) => void;
 
-export interface ISlate<T, S> {
+export interface ISlate<T, S extends readonly unknown[]> {
   value: T;
-  set: Setter<T, S>;
+  set: Set<T>;
+  setInitilizer: SetInitilizer<T, S>;
   listen: Listener<T>;
   watch: Watcher;
 }
 
 const defaultIsEqual = (v1: unknown, v2: unknown): boolean => Object.is(v1, v2);
 
-export class Slate<T, S extends Array<unknown> = never[]>
-  implements ISlate<T, S>
-{
+export class Slate<T, S extends readonly unknown[]> implements ISlate<T, S> {
   private _value: T;
   private _dirty: boolean = false;
   private _lCbs = new Set<ListenCallback<T>>();
@@ -31,7 +34,7 @@ export class Slate<T, S extends Array<unknown> = never[]>
   constructor(
     private initilizer: Initializer<T, S>,
     private dependancies: Dependencies<S> | never[] = [],
-    private isEqual: isEqual<T> = defaultIsEqual,
+    private isEqual: isEqual<T> = defaultIsEqual
   ) {
     this._value = this.resolveValue();
     this.dependancies.map((d) => d.watch(this.update.bind(this)));
@@ -40,7 +43,7 @@ export class Slate<T, S extends Array<unknown> = never[]>
   private resolveValue(): T {
     return this.initilizer instanceof Function
       ? //@ts-ignore
-        this.initilizer(this.dependancies.map((d) => d.value))
+        this.initilizer(...this.dependancies.map((d) => d.value))
       : this.initilizer;
   }
 
@@ -65,8 +68,13 @@ export class Slate<T, S extends Array<unknown> = never[]>
     return this._value;
   }
 
-  public set(initilizer: Initializer<T, S>): void {
+  public setInitilizer(initilizer: Initializer<T, S>): void {
     this.initilizer = initilizer;
+    this.update();
+  }
+
+  public set(setter: Setter<T>): void {
+    this.initilizer = setter instanceof Function ? setter(this.value) : setter;
     this.update();
   }
 

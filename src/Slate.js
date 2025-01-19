@@ -20,7 +20,7 @@ class Slate {
     resolveValue() {
         return this.initilizer instanceof Function
             ? //@ts-ignore
-                this.initilizer(this.dependancies.map((d) => d.value))
+                this.initilizer(...this.dependancies.map((d) => d.value))
             : this.initilizer;
     }
     setValue() {
@@ -38,13 +38,16 @@ class Slate {
         this._wCbs.forEach((cb) => cb());
     }
     get value() {
-        if (this._dirty) {
+        if (this._dirty)
             this.setValue();
-        }
         return this._value;
     }
-    set(initilizer) {
+    setInitilizer(initilizer) {
         this.initilizer = initilizer;
+        this.update();
+    }
+    set(setter) {
+        this.initilizer = setter instanceof Function ? setter(this.value) : setter;
         this.update();
     }
     listen(cb) {
