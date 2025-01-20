@@ -19,6 +19,7 @@ isEvenString.listen((v) => {
 
 dep1.set(50);
 dep2.set({ a: 7 });
+
 console.log("dep1", dep1.value);
 
 dep1.set(3);

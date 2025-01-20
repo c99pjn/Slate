@@ -1,26 +1,20 @@
 type Cancel = () => void;
 type ListenCallback<T> = (value: T) => void;
-type Listener<T> = (cb: ListenCallback<T>) => Cancel;
 type WatchCallback = () => void;
-type Watcher = (cb: WatchCallback) => Cancel;
-type isEqual<T> = (oldValue: T, newValue: T) => boolean;
+type IsEqual<T> = (oldValue: T, newValue: T) => boolean;
 type Dependency<T> = { watch: (cb: () => void) => Cancel; value: T };
 type Dependencies<S extends readonly unknown[]> = {
   readonly [Key in keyof S]: Dependency<S[Key]>;
 };
 type Initializer<T, S extends readonly unknown[]> = ((...deps: S) => T) | T;
-type SetInitilizer<T, S extends readonly unknown[]> = (
-  initilizer: Initializer<T, S>
-) => void;
 type Setter<T> = ((prevValue: T) => T) | T;
-type Set<T> = (setter: Setter<T>) => void;
 
 export interface ISlate<T, S extends readonly unknown[]> {
   value: T;
-  set: Set<T>;
-  setInitilizer: SetInitilizer<T, S>;
-  listen: Listener<T>;
-  watch: Watcher;
+  set: (setter: Setter<T>) => void;
+  setInitilizer: (initilizer: Initializer<T, S>) => void;
+  listen: (cb: ListenCallback<T>) => Cancel;
+  watch: (cb: WatchCallback) => Cancel;
 }
 
 const defaultIsEqual = (v1: unknown, v2: unknown): boolean => Object.is(v1, v2);
@@ -30,14 +24,25 @@ export class Slate<T, S extends readonly unknown[]> implements ISlate<T, S> {
   private _dirty: boolean = false;
   private _lCbs = new Set<ListenCallback<T>>();
   private _wCbs = new Set<WatchCallback>();
+  private _dW: Array<Cancel> | null = null;
 
   constructor(
     private initilizer: Initializer<T, S>,
     private dependancies: Dependencies<S> | never[] = [],
-    private isEqual: isEqual<T> = defaultIsEqual
+    private isEqual: IsEqual<T> = defaultIsEqual
   ) {
     this._value = this.resolveValue();
-    this.dependancies.map((d) => d.watch(this.update.bind(this)));
+  }
+
+  private addCallback<T>(set: Set<T>, cb: T): Cancel {
+    set.add(cb);
+    this._dW =
+      this._dW ?? this.dependancies.map((d) => d.watch(this.update.bind(this)));
+    return () => {
+      set.delete(cb);
+      const noListeners = this._lCbs.size === 0 && this._wCbs.size === 0;
+      if (this._dW && noListeners) this._dW.forEach((d) => d());
+    };
   }
 
   private resolveValue(): T {
@@ -79,12 +84,10 @@ export class Slate<T, S extends readonly unknown[]> implements ISlate<T, S> {
   }
 
   public listen(cb: ListenCallback<T>): Cancel {
-    this._lCbs.add(cb);
-    return () => this._lCbs.delete(cb);
+    return this.addCallback(this._lCbs, cb);
   }
 
   public watch(cb: WatchCallback): Cancel {
-    this._wCbs.add(cb);
-    return () => this._wCbs.delete(cb);
+    return this.addCallback(this._wCbs, cb);
   }
 }

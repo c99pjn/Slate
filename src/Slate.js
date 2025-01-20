@@ -10,12 +10,23 @@ class Slate {
     _dirty = false;
     _lCbs = new Set();
     _wCbs = new Set();
+    _dW = null;
     constructor(initilizer, dependancies = [], isEqual = defaultIsEqual) {
         this.initilizer = initilizer;
         this.dependancies = dependancies;
         this.isEqual = isEqual;
         this._value = this.resolveValue();
-        this.dependancies.map((d) => d.watch(this.update.bind(this)));
+    }
+    addCallback(set, cb) {
+        set.add(cb);
+        this._dW =
+            this._dW ?? this.dependancies.map((d) => d.watch(this.update.bind(this)));
+        return () => {
+            set.delete(cb);
+            const noListeners = this._lCbs.size === 0 && this._wCbs.size === 0;
+            if (this._dW && noListeners)
+                this._dW.forEach((d) => d());
+        };
     }
     resolveValue() {
         return this.initilizer instanceof Function
@@ -51,12 +62,10 @@ class Slate {
         this.update();
     }
     listen(cb) {
-        this._lCbs.add(cb);
-        return () => this._lCbs.delete(cb);
+        return this.addCallback(this._lCbs, cb);
     }
     watch(cb) {
-        this._wCbs.add(cb);
-        return () => this._wCbs.delete(cb);
+        return this.addCallback(this._wCbs, cb);
     }
 }
 exports.Slate = Slate;
