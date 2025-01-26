@@ -5,10 +5,8 @@ const dep1 = new Slate_1.Slate(() => 5);
 const dep2 = new Slate_1.Slate({ a: 5 });
 const mult = new Slate_1.Slate((d1, d2) => d1 * d2.a, [dep1, dep2]);
 const isEven = new Slate_1.Slate((d) => !(d % 2), [mult]);
-const isEvenString = new Slate_1.Slate((d) => (d ? "ja" : "nej"), [isEven]);
-mult.listen((v) => {
-    console.log("mult", v);
-});
+const isEvenString = new Slate_1.Slate((d) => (d ? "yes" : "no"), [isEven]);
+//mult.listen((v) => console.log("mult", v));
 const cancel = isEven.listen((v) => {
     console.log("isEven", v);
 });
@@ -19,7 +17,6 @@ dep1.set(50);
 dep2.set({ a: 7 });
 console.log("dep1", dep1.value);
 dep1.set(3);
-isEvenString.setInitilizer((d) => (d ? "yes" : "no"));
 cancel();
 dep1.set((v) => v + 1);
 dep1.set((v) => v + 1);

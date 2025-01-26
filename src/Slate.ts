@@ -1,81 +1,53 @@
 type Cancel = () => void;
 type ListenCallback<T> = (value: T) => void;
-type WatchCallback = () => void;
 type IsEqual<T> = (oldValue: T, newValue: T) => boolean;
-type Dependency<T> = { watch: (cb: () => void) => Cancel; value: T };
+type Dependency<T> = { listen: (cb: () => void) => Cancel; value: T };
 type Dependencies<S extends readonly unknown[]> = {
   readonly [Key in keyof S]: Dependency<S[Key]>;
 };
 type Initializer<T, S extends readonly unknown[]> = ((...deps: S) => T) | T;
-type Setter<T> = ((prevValue: T) => T) | T;
+type Setter<T> = ((curValue: T) => T) | T;
 
-export interface ISlate<T, S extends readonly unknown[]> {
-  value: T;
-  set: (setter: Setter<T>) => void;
-  setInitilizer: (initilizer: Initializer<T, S>) => void;
-  listen: (cb: ListenCallback<T>) => Cancel;
-  watch: (cb: WatchCallback) => Cancel;
-}
+const slateSet = new Set<WeakRef<{ reset: () => void }>>();
+export const resetAllSlates = () =>
+  slateSet.forEach((ref) => ref.deref()?.reset());
 
 const defaultIsEqual = (v1: unknown, v2: unknown): boolean => Object.is(v1, v2);
 
-export class Slate<T, S extends readonly unknown[]> implements ISlate<T, S> {
-  private _value: T;
-  private _dirty: boolean = false;
-  private _lCbs = new Set<ListenCallback<T>>();
-  private _wCbs = new Set<WatchCallback>();
-  private _dW: Array<Cancel> | null = null;
+export class Slate<T, S extends readonly unknown[] = []> {
+  private _curValue: T;
+  private initialInitializer: Initializer<T, S>;
+  private listenCbs = new Set<ListenCallback<T>>();
+  private depCancels: Array<Cancel> | null = null;
 
   constructor(
     private initilizer: Initializer<T, S>,
-    private dependancies: Dependencies<S> | never[] = [],
-    private isEqual: IsEqual<T> = defaultIsEqual
+    private readonly dependancies: Dependencies<S> | never[] = [],
+    private readonly isEqual: IsEqual<T> = defaultIsEqual
   ) {
-    this._value = this.resolveValue();
+    this._curValue = this.value;
+    this.initialInitializer = this.initilizer;
+    slateSet.add(new WeakRef(this));
   }
 
-  private addCallback<T>(set: Set<T>, cb: T): Cancel {
-    set.add(cb);
-    this._dW =
-      this._dW ?? this.dependancies.map((d) => d.watch(this.update.bind(this)));
-    return () => {
-      set.delete(cb);
-      const noListeners = this._lCbs.size === 0 && this._wCbs.size === 0;
-      if (this._dW && noListeners) this._dW.forEach((d) => d());
-    };
+  private update(): void {
+    const newValue = this.value;
+
+    if (!this.isEqual(this._curValue, newValue)) {
+      this._curValue = newValue;
+      this.listenCbs.forEach((cb) => cb(this._curValue));
+    }
   }
 
-  private resolveValue(): T {
+  get value(): T {
     return this.initilizer instanceof Function
       ? //@ts-ignore
         this.initilizer(...this.dependancies.map((d) => d.value))
       : this.initilizer;
   }
 
-  private setValue(): void {
-    const newValue = this.resolveValue();
-
-    if (!this.isEqual(this._value, newValue)) {
-      this._value = newValue;
-      this._lCbs.forEach((cb) => cb(this._value));
-    }
-    this._dirty = false;
-  }
-
-  private update(): void {
-    this._dirty = true;
-    if (this._lCbs.size > 0) this.setValue();
-    this._wCbs.forEach((cb) => cb());
-  }
-
-  get value(): T {
-    if (this._dirty) this.setValue();
-    return this._value;
-  }
-
-  public setInitilizer(initilizer: Initializer<T, S>): void {
-    this.initilizer = initilizer;
-    this.update();
+  public reset(): void {
+    this.initilizer = this.initialInitializer;
   }
 
   public set(setter: Setter<T>): void {
@@ -84,10 +56,17 @@ export class Slate<T, S extends readonly unknown[]> implements ISlate<T, S> {
   }
 
   public listen(cb: ListenCallback<T>): Cancel {
-    return this.addCallback(this._lCbs, cb);
-  }
+    this.listenCbs.add(cb);
+    this.depCancels ??= this.dependancies.map((d) =>
+      d.listen(this.update.bind(this))
+    );
 
-  public watch(cb: WatchCallback): Cancel {
-    return this.addCallback(this._wCbs, cb);
+    return () => {
+      this.listenCbs.delete(cb);
+      if (this.listenCbs.size === 0) {
+        this.depCancels?.forEach((c) => c());
+        this.depCancels = null;
+      }
+    };
   }
 }

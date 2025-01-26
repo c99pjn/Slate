@@ -1,71 +1,56 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Slate = void 0;
+exports.Slate = exports.resetAllSlates = void 0;
+const slateSet = new Set();
+const resetAllSlates = () => slateSet.forEach((ref) => ref.deref()?.reset());
+exports.resetAllSlates = resetAllSlates;
 const defaultIsEqual = (v1, v2) => Object.is(v1, v2);
 class Slate {
     initilizer;
     dependancies;
     isEqual;
-    _value;
-    _dirty = false;
-    _lCbs = new Set();
-    _wCbs = new Set();
-    _dW = null;
+    _curValue;
+    initialInitializer;
+    listenCbs = new Set();
+    depCancels = null;
     constructor(initilizer, dependancies = [], isEqual = defaultIsEqual) {
         this.initilizer = initilizer;
         this.dependancies = dependancies;
         this.isEqual = isEqual;
-        this._value = this.resolveValue();
+        this._curValue = this.value;
+        this.initialInitializer = this.initilizer;
+        slateSet.add(new WeakRef(this));
     }
-    addCallback(set, cb) {
-        set.add(cb);
-        this._dW =
-            this._dW ?? this.dependancies.map((d) => d.watch(this.update.bind(this)));
-        return () => {
-            set.delete(cb);
-            const noListeners = this._lCbs.size === 0 && this._wCbs.size === 0;
-            if (this._dW && noListeners)
-                this._dW.forEach((d) => d());
-        };
+    update() {
+        const newValue = this.value;
+        if (!this.isEqual(this._curValue, newValue)) {
+            this._curValue = newValue;
+            this.listenCbs.forEach((cb) => cb(this._curValue));
+        }
     }
-    resolveValue() {
+    get value() {
         return this.initilizer instanceof Function
             ? //@ts-ignore
                 this.initilizer(...this.dependancies.map((d) => d.value))
             : this.initilizer;
     }
-    setValue() {
-        const newValue = this.resolveValue();
-        if (!this.isEqual(this._value, newValue)) {
-            this._value = newValue;
-            this._lCbs.forEach((cb) => cb(this._value));
-        }
-        this._dirty = false;
-    }
-    update() {
-        this._dirty = true;
-        if (this._lCbs.size > 0)
-            this.setValue();
-        this._wCbs.forEach((cb) => cb());
-    }
-    get value() {
-        if (this._dirty)
-            this.setValue();
-        return this._value;
-    }
-    setInitilizer(initilizer) {
-        this.initilizer = initilizer;
-        this.update();
+    reset() {
+        this.initilizer = this.initialInitializer;
     }
     set(setter) {
         this.initilizer = setter instanceof Function ? setter(this.value) : setter;
         this.update();
     }
     listen(cb) {
-        return this.addCallback(this._lCbs, cb);
-    }
-    watch(cb) {
-        return this.addCallback(this._wCbs, cb);
+        this.listenCbs.add(cb);
+        this.depCancels ??= this.dependancies.map((d) => d.listen(this.update.bind(this)));
+        return () => {
+            this.listenCbs.delete(cb);
+            if (this.listenCbs.size === 0) {
+                this.depCancels?.forEach((c) => c());
+                this.depCancels = null;
+            }
+        };
     }
 }
 exports.Slate = Slate;
