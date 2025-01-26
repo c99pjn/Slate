@@ -14,7 +14,7 @@ export const resetAllSlates = () =>
 
 const defaultIsEqual = (v1: unknown, v2: unknown): boolean => Object.is(v1, v2);
 
-export class Slate<T, S extends readonly unknown[] = []> {
+export class Slate<T, const S extends readonly unknown[] = readonly []> {
   private _curValue: T;
   private initialInitializer: Initializer<T, S>;
   private listenCbs = new Set<ListenCallback<T>>();

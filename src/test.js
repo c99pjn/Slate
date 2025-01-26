@@ -6,7 +6,7 @@ const dep2 = new Slate_1.Slate({ a: 5 });
 const mult = new Slate_1.Slate((d1, d2) => d1 * d2.a, [dep1, dep2]);
 const isEven = new Slate_1.Slate((d) => !(d % 2), [mult]);
 const isEvenString = new Slate_1.Slate((d) => (d ? "yes" : "no"), [isEven]);
-//mult.listen((v) => console.log("mult", v));
+mult.listen((v) => console.log("mult", v));
 const cancel = isEven.listen((v) => {
     console.log("isEven", v);
 });

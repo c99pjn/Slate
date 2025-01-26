@@ -7,7 +7,7 @@ type Dep2State = {
 const dep1 = new Slate(() => 5);
 const dep2 = new Slate<Dep2State>({ a: 5 });
 
-const mult = new Slate((d1, d2) => d1 * d2.a, [dep1, dep2] as const);
+const mult = new Slate((d1, d2) => d1 * d2.a, [dep1, dep2]);
 const isEven = new Slate((d) => !(d % 2), [mult]);
 const isEvenString = new Slate((d) => (d ? "yes" : "no"), [isEven]);
 
